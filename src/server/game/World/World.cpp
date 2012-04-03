@@ -208,6 +208,7 @@ bool World::RemoveSession(uint32 id)
     {
         if (itr->second->PlayerLoading())
             return false;
+
         itr->second->KickPlayer();
     }
 
@@ -219,8 +220,7 @@ void World::AddSession(WorldSession* s)
     addSessQueue.add(s);
 }
 
-void
-World::AddSession_(WorldSession* s)
+void World::AddSession_(WorldSession* s)
 {
     ASSERT (s);
 
@@ -268,16 +268,13 @@ World::AddSession_(WorldSession* s)
     {
         AddQueuedPlayer (s);
         UpdateMaxSessionCounters();
-        sLog->outDetail ("PlayerQueue: Account id %u is in Queue Position (%u).", s->GetAccountId(), ++QueueSize);
+        sLog->outDetail("PlayerQueue: Account id %u is in Queue Position (%u).", s->GetAccountId(), ++QueueSize);
         return;
     }
 
     s->SendAuthResponse(AUTH_OK, true);
-
     s->SendAddonsInfo();
-
     s->SendClientCacheVersion(sWorld->getIntConfig(CONFIG_CLIENTCACHE_VERSION));
-
     s->SendTutorialsData();
 
     UpdateMaxSessionCounters();
@@ -288,7 +285,7 @@ World::AddSession_(WorldSession* s)
         float popu = (float)GetActiveSessionCount();              // updated number of users on the server
         popu /= pLimit;
         popu *= 2;
-        sLog->outDetail ("Server Population (%f).", popu);
+        sLog->outDetail("Server Population (%f).", popu);
     }
 }
 
@@ -1213,7 +1210,9 @@ void World::LoadConfigSettings(bool reload)
     m_int_configs[CONFIG_WINTERGRASP_NOBATTLETIME] = ConfigMgr::GetIntDefault("Wintergrasp.NoBattleTimer", 150);
     m_int_configs[CONFIG_WINTERGRASP_RESTART_AFTER_CRASH] = ConfigMgr::GetIntDefault("Wintergrasp.CrashRestartTimer", 10);
 
-    sScriptMgr->OnConfigLoad(reload);
+    // call ScriptMgr if we're reloading the configuration
+    if (reload)
+        sScriptMgr->OnConfigLoad(reload);
 }
 
 extern void LoadGameObjectModelList();
@@ -1666,6 +1665,7 @@ void World::SetInitialWorldSettings()
 
     sLog->outString("Initializing Scripts...");
     sScriptMgr->Initialize();
+    sScriptMgr->OnConfigLoad(false);                                // must be done after the ScriptMgr has been properly initialized
 
     sLog->outString("Validating spell scripts...");
     sObjectMgr->ValidateSpellScripts();
@@ -1679,18 +1679,10 @@ void World::SetInitialWorldSettings()
     ///- Initialize game time and timers
     sLog->outString("Initialize game time and timers");
     m_gameTime = time(NULL);
-    m_startTime=m_gameTime;
+    m_startTime = m_gameTime;
 
-    tm local;
-    time_t curr;
-    time(&curr);
-    local=*(localtime(&curr));                              // dereference and assign
-    char isoDate[128];
-    sprintf(isoDate, "%04d-%02d-%02d %02d:%02d:%02d",
-        local.tm_year+1900, local.tm_mon+1, local.tm_mday, local.tm_hour, local.tm_min, local.tm_sec);
-
-    LoginDatabase.PExecute("INSERT INTO uptime (realmid, starttime, startstring, uptime, revision) VALUES('%u', " UI64FMTD ", '%s', 0, '%s')",
-                            realmID, uint64(m_startTime), isoDate, _FULLVERSION);       // One-time query
+    LoginDatabase.PExecute("INSERT INTO uptime (realmid, starttime, uptime, revision) VALUES(%u, %u, 0, '%s')",
+                            realmID, uint32(m_startTime), _FULLVERSION);       // One-time query
 
     m_timers[WUPDATE_WEATHERS].SetInterval(1*IN_MILLISECONDS);
     m_timers[WUPDATE_AUCTIONS].SetInterval(MINUTE*IN_MILLISECONDS);
@@ -1789,7 +1781,7 @@ void World::SetInitialWorldSettings()
 
     uint32 startupDuration = GetMSTimeDiffToNow(startupBegin);
     sLog->outString();
-    sLog->outString("WORLD: World initialized in %u minutes %u seconds", (startupDuration / 60000), ((startupDuration % 60000) / 1000) );
+    sLog->outString("WORLD: World initialized in %u minutes %u seconds", (startupDuration / 60000), ((startupDuration % 60000) / 1000));
     sLog->outString();
 }
 
@@ -1979,10 +1971,10 @@ void World::Update(uint32 diff)
 
         PreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_UPD_UPTIME_PLAYERS);
 
-        stmt->setUInt64(0, uint64(tmpDiff));
+        stmt->setUInt32(0, tmpDiff);
         stmt->setUInt16(1, uint16(maxOnlinePlayers));
         stmt->setUInt32(2, realmID);
-        stmt->setUInt64(3, uint64(m_startTime));
+        stmt->setUInt32(3, uint32(m_startTime));
 
         LoginDatabase.Execute(stmt);
     }
@@ -2667,7 +2659,7 @@ void World::_UpdateRealmCharCount(PreparedQueryResult resultCharCount)
     {
         Field* fields = resultCharCount->Fetch();
         uint32 accountId = fields[0].GetUInt32();
-        uint32 charCount = fields[1].GetUInt32();
+        uint8 charCount = uint8(fields[1].GetUInt64());
 
         PreparedStatement* stmt = LoginDatabase.GetPreparedStatement(LOGIN_DEL_REALM_CHARACTERS_BY_REALM);
         stmt->setUInt32(0, accountId);
@@ -2675,7 +2667,7 @@ void World::_UpdateRealmCharCount(PreparedQueryResult resultCharCount)
         LoginDatabase.Execute(stmt);
 
         stmt = LoginDatabase.GetPreparedStatement(LOGIN_INS_REALM_CHARACTERS);
-        stmt->setUInt32(0, charCount);
+        stmt->setUInt8(0, charCount);
         stmt->setUInt32(1, accountId);
         stmt->setUInt32(2, realmID);
         LoginDatabase.Execute(stmt);
@@ -2951,7 +2943,7 @@ void World::LoadCharacterNameData()
 {
     sLog->outString("Loading character name data");
 
-    QueryResult result = CharacterDatabase.Query("SELECT guid, name, race, gender, class FROM characters");
+    QueryResult result = CharacterDatabase.Query("SELECT guid, name, race, gender, class FROM characters WHERE deleteDate IS NULL");
     if (!result)
     {
         sLog->outError("No character name data loaded, empty query");
@@ -2962,7 +2954,7 @@ void World::LoadCharacterNameData()
 
     do
     {
-        Field *fields = result->Fetch();
+        Field* fields = result->Fetch();
         AddCharacterNameData(fields[0].GetUInt32(), fields[1].GetString(),
             fields[3].GetUInt8() /*gender*/, fields[2].GetUInt8() /*race*/, fields[4].GetUInt8() /*class*/);
         ++count;

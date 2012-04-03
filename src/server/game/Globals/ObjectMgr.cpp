@@ -1131,7 +1131,7 @@ void ObjectMgr::LoadCreatureModelInfo()
 
         uint32 modelId = fields[0].GetUInt32();
 
-        CreatureModelInfo& modelInfo =  _creatureModelStore[modelId];
+        CreatureModelInfo& modelInfo = _creatureModelStore[modelId];
 
         modelInfo.bounding_radius      = fields[1].GetFloat();
         modelInfo.combat_reach         = fields[2].GetFloat();
@@ -2946,7 +2946,7 @@ void ObjectMgr::LoadPetLevelInfo()
         PetLevelInfo*& pInfoMapEntry = _petInfoStore[creature_id];
 
         if (pInfoMapEntry == NULL)
-            pInfoMapEntry =  new PetLevelInfo[sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL)];
+            pInfoMapEntry = new PetLevelInfo[sWorld->getIntConfig(CONFIG_MAX_PLAYER_LEVEL)];
 
         // data for level 1 stored in [0] array element, ...
         PetLevelInfo* pLevelInfo = &pInfoMapEntry[current_level-1];
@@ -4991,7 +4991,7 @@ void ObjectMgr::LoadPageTexts()
     {
         Field* fields = result->Fetch();
 
-        PageText& pageText =  _pageTextStore[fields[0].GetUInt32()];
+        PageText& pageText = _pageTextStore[fields[0].GetUInt32()];
 
         pageText.Text     = fields[1].GetString();
         pageText.NextPage = fields[2].GetUInt32();
@@ -5317,7 +5317,7 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
 
     std::map<uint32 /*messageId*/, MailItemInfoVec> itemsCache;
     stmt = CharacterDatabase.GetPreparedStatement(CHAR_SEL_EXPIRED_MAIL_ITEMS);
-    stmt->setUInt64(0, basetime);
+    stmt->setUInt32(0, (uint32)basetime);
     if (PreparedQueryResult items = CharacterDatabase.Query(stmt))
     {
         MailItemInfo item;
@@ -5337,15 +5337,15 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
     {
         Field* fields = result->Fetch();
         Mail* m = new Mail;
-        m->messageID = fields[0].GetUInt32();
-        m->messageType = fields[1].GetUInt8();
-        m->sender = fields[2].GetUInt32();
-        m->receiver = fields[3].GetUInt32();
-        bool has_items = fields[4].GetBool();
-        m->expire_time = time_t(fields[5].GetUInt32());
-        m->deliver_time = 0;
-        m->COD = fields[6].GetUInt32();
-        m->checked = fields[7].GetUInt32();
+        m->messageID      = fields[0].GetUInt32();
+        m->messageType    = fields[1].GetUInt8();
+        m->sender         = fields[2].GetUInt32();
+        m->receiver       = fields[3].GetUInt32();
+        bool has_items    = fields[4].GetBool();
+        m->expire_time    = time_t(fields[5].GetUInt32());
+        m->deliver_time   = 0;
+        m->COD            = fields[6].GetUInt32();
+        m->checked        = fields[7].GetUInt8();
         m->mailTemplateId = fields[8].GetInt16();
 
         Player* player = NULL;
@@ -5382,8 +5382,8 @@ void ObjectMgr::ReturnOrDeleteOldMails(bool serverUp)
                 stmt = CharacterDatabase.GetPreparedStatement(CHAR_UPD_MAIL_RETURNED);
                 stmt->setUInt32(0, m->receiver);
                 stmt->setUInt32(1, m->sender);
-                stmt->setUInt64(2, basetime + 30 * DAY);
-                stmt->setUInt64(3, basetime);
+                stmt->setUInt32(2, basetime + 30 * DAY);
+                stmt->setUInt32(3, basetime);
                 stmt->setUInt8 (4, uint8(MAIL_CHECK_MASK_RETURNED));
                 stmt->setUInt32(5, m->messageID);
                 CharacterDatabase.Execute(stmt);
@@ -7203,7 +7203,7 @@ void ObjectMgr::SaveCreatureRespawnTime(uint32 loguid, uint32 instance, time_t t
 
     PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_REP_CREATURE_RESPAWN);
     stmt->setUInt32(0, loguid);
-    stmt->setUInt64(1, uint64(t));
+    stmt->setUInt32(1, uint32(t));
     stmt->setUInt32(2, instance);
     CharacterDatabase.Execute(stmt);
 }
@@ -7217,7 +7217,7 @@ void ObjectMgr::RemoveCreatureRespawnTime(uint32 loguid, uint32 instance)
         _creatureRespawnTimesMutex.release();
     }
 
-    PreparedStatement *stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CREATURE_RESPAWN);
+    PreparedStatement* stmt = CharacterDatabase.GetPreparedStatement(CHAR_DEL_CREATURE_RESPAWN);
     stmt->setUInt32(0, loguid);
     stmt->setUInt32(1, instance);
     CharacterDatabase.Execute(stmt);
@@ -8598,10 +8598,13 @@ uint32 ObjectMgr::GetScriptId(const char *name)
 {
     // use binary search to find the script name in the sorted vector
     // assume "" is the first element
-    if (!name) return 0;
-    ScriptNameContainer::const_iterator itr =
-        std::lower_bound(_scriptNamesStore.begin(), _scriptNamesStore.end(), name);
-    if (itr == _scriptNamesStore.end() || *itr != name) return 0;
+    if (!name)
+        return 0;
+
+    ScriptNameContainer::const_iterator itr = std::lower_bound(_scriptNamesStore.begin(), _scriptNamesStore.end(), name);
+    if (itr == _scriptNamesStore.end() || *itr != name)
+        return 0;
+
     return uint32(itr - _scriptNamesStore.begin());
 }
 
@@ -8610,6 +8613,7 @@ void ObjectMgr::CheckScripts(ScriptsType type, std::set<int32>& ids)
     ScriptMapMap* scripts = GetScriptsMapByType(type);
     if (!scripts)
         return;
+
     for (ScriptMapMap::const_iterator itrMM = scripts->begin(); itrMM != scripts->end(); ++itrMM)
     {
         for (ScriptMap::const_iterator itrM = itrMM->second.begin(); itrM != itrMM->second.end(); ++itrM)
