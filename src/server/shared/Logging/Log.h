@@ -24,8 +24,7 @@
 #include "LogWorker.h"
 #include "Logger.h"
 
-#include <ace/Singleton.h>
-    LOG_FILTER_BATTLEFIELD              = 0x01000000,   // Battlefield related
+#include <ace/Singleton.h>   
 
 #include <string>
 #include <set>

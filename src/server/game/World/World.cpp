@@ -1732,7 +1732,7 @@ void World::SetInitialWorldSettings()
     sOutdoorPvPMgr->InitOutdoorPvP();
 
     ///- Initialize Battlefield
-    sLog->outString("Starting Battlefield System");
+    sLog->outInfo(LOG_FILTER_GENERAL, "Starting Battlefield System");
     sBattlefieldMgr->InitBattlefield();
 
     sLog->outInfo(LOG_FILTER_GENERAL, "Loading Transports...");
